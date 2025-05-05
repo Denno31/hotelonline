@@ -44,7 +44,8 @@ export async function POST(request: Request) {
         bill: {
           include: {
             items: true,
-            payments: true
+            payments: true,
+            company: true
           }
         }
       }

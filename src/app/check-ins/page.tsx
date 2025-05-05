@@ -28,6 +28,7 @@ interface CheckIn {
     id: string
     total: number
     status: string
+    companyId: string | null
     items: Array<{
       description: string
       amount: number
@@ -193,7 +194,7 @@ export default function CheckInsPage() {
                         setCheckOutData({
                           checkInId: checkIn.id,
                           hasOutstandingBalance: remainingBalance > 0,
-                          isCompanyBill: !!checkIn.guest.company,
+                          isCompanyBill: !!checkIn.bill.companyId,
                           remainingBalance
                         })
                       }
