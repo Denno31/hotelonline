@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { RoomStatus, RoomType } from '@prisma/client'
 
 // GET /api/rooms - Get all rooms with their current status
 export async function GET() {
@@ -54,9 +55,9 @@ export async function POST(req: Request) {
     const room = await prisma.room.create({
       data: {
         number,
-        type,
+        type: type as RoomType,
         rate,
-        status: 'AVAILABLE'
+        status: RoomStatus.AVAILABLE
       }
     })
 

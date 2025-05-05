@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { CheckInStatus, RoomStatus } from '@prisma/client'
 
 
 type CheckInResponse = {
@@ -27,6 +28,33 @@ export async function POST(request: Request) {
       )
     }
 
+    // Get current user's active shift
+    const user = await prisma.user.findUnique({
+      where: { email: session.user?.email || '' }
+    })
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'User not found' },
+        { status: 404 }
+      )
+    }
+
+    // Get active shift
+    const activeShift = await prisma.shift.findFirst({
+      where: {
+        userId: user.id,
+        status: 'ACTIVE'
+      }
+    })
+
+    if (!activeShift) {
+      return NextResponse.json(
+        { success: false, error: 'No active shift found. Please start a shift before creating a check-in.' },
+        { status: 400 }
+      )
+    }
+
     // Create check-in and update room status in a transaction
     const result = await prisma.$transaction(async (tx) => {
       // Get room details for billing
@@ -46,20 +74,21 @@ export async function POST(request: Request) {
       // Create the check-in first
       const newCheckIn = await tx.checkIn.create({
         data: {
-          guest: { connect: { id: guestId } },
-          room: { connect: { id: roomId } },
+          guestId,
+          roomId,
+          shiftId: activeShift.id,
           checkInDate: new Date(checkInDate),
           checkOutDate: checkOutDate ? new Date(checkOutDate) : null,
-          status: 'ACTIVE'
+          status: CheckInStatus.ACTIVE
         }
       })
 
       // Create initial bill
       const bill = await tx.bill.create({
         data: {
-          guest: { connect: { id: guestId } },
-          room: { connect: { id: roomId } },
-          checkIn: { connect: { id: newCheckIn.id } },
+          guestId,
+          roomId,
+          checkInId: newCheckIn.id,
           total: room.rate,
           status: 'PENDING',
           checkInDate: new Date(checkInDate),
@@ -80,7 +109,7 @@ export async function POST(request: Request) {
       // Update room status to OCCUPIED
       await tx.room.update({
         where: { id: roomId },
-        data: { status: 'OCCUPIED' }
+        data: { status: RoomStatus.OCCUPIED }
       })
 
       // Fetch complete check-in details
@@ -127,7 +156,7 @@ export async function GET() {
     }
 
     const checkIns = await prisma.checkIn.findMany({
-      where: { status: 'ACTIVE' },
+      where: { status: CheckInStatus.ACTIVE },
       include: {
         guest: true,
         room: true,

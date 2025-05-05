@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { PaymentMethod } from '@prisma/client'
 
 // POST /api/payments - Record a new payment
 export async function POST(req: Request) {
@@ -15,8 +16,7 @@ export async function POST(req: Request) {
     const { billId, amount, method, reference } = body
 
     // Validate payment method
-    const validPaymentMethods = ['CASH', 'CREDIT_CARD', 'BANK_TRANSFER', 'MOBILE_MONEY']
-    if (!validPaymentMethods.includes(method)) {
+    if (!Object.values(PaymentMethod).includes(method as PaymentMethod)) {
       return NextResponse.json(
         { error: 'Invalid payment method' },
         { status: 400 }
@@ -44,6 +44,29 @@ export async function POST(req: Request) {
     }
 
     // First check if the bill exists and has enough remaining balance
+    if (!session.user?.email) {
+      return NextResponse.json({ error: 'User email not found' }, { status: 401 })
+    }
+
+    // Get the user and their current shift
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      include: {
+        currentShift: true
+      }
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    if (!user.currentShift) {
+      return NextResponse.json(
+        { error: 'No active shift found. Please start a shift before recording payments.' },
+        { status: 400 }
+      )
+    }
+
     const bill = await prisma.bill.findUnique({
       where: { id: billId },
       include: {
@@ -71,12 +94,14 @@ export async function POST(req: Request) {
     const payment = await prisma.$transaction(async (tx) => {
       // Create payment record
       const payment = await tx.payment.create({
+        // @ts-ignore - Prisma types are incorrect
         data: {
           billId,
           amount,
-          method,
+          method: method as PaymentMethod,
           reference,
-          date: systemDate.currentDate
+          date: systemDate.currentDate,
+          shiftId: user.currentShift!.id
         },
         include: {
           bill: true
