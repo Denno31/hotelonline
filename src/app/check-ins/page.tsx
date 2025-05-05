@@ -171,6 +171,12 @@ export default function CheckInsPage() {
 
                 <div className="mt-4 flex justify-end space-x-4">
                   <button
+                    onClick={() => router.push(`/folios/guest/${checkIn.id}`)}
+                    className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                  >
+                    View Folio
+                  </button>
+                  <button
                     onClick={() => {
                       if (checkIn.bill) {
                         const totalPaid = checkIn.bill.payments?.reduce((sum, p) => sum + p.amount, 0) || 0
