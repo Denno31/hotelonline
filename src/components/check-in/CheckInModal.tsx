@@ -145,29 +145,7 @@ export default function CheckInModal({
     setLoading(true)
 
     try {
-      // Create initial bill
-      const billResponse = await fetch('/api/bills', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          guestId: formData.guestId,
-          companyId: formData.companyId || undefined,
-          roomId: formData.roomId,
-          checkInDate: new Date().toISOString(),
-          checkOutDate: formData.checkOutDate || undefined,
-          status: 'PENDING'
-        })
-      })
-
-      if (!billResponse.ok) {
-        throw new Error('Failed to create bill')
-      }
-
-      const bill = await billResponse.json()
-
-      // Create check-in
+      // Create check-in with bill
       const response = await fetch('/api/check-ins', {
         method: 'POST',
         headers: {
@@ -177,7 +155,9 @@ export default function CheckInModal({
           guestId: formData.guestId,
           roomId: formData.roomId,
           checkInDate: new Date().toISOString(),
-          checkOutDate: formData.checkOutDate || null
+          checkOutDate: formData.checkOutDate || null,
+          isCompanyBill: formData.isCompany,
+          companyId: formData.isCompany ? formData.companyId : null
         })
       })
 

@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { guestId, roomId, checkInDate, checkOutDate } = await request.json()
+    const { guestId, roomId, checkInDate, checkOutDate, isCompanyBill, companyId } = await request.json()
 
     if (!guestId || !roomId || !checkInDate) {
       return NextResponse.json(
@@ -104,12 +104,19 @@ export async function POST(request: Request) {
         }
       })
 
+      // Get guest details to check for company
+      const guest = await tx.guest.findUnique({
+        where: { id: guestId },
+        select: { companyId: true }
+      })
+
       // Create initial bill
       const bill = await tx.bill.create({
         data: {
           guestId,
           roomId,
           checkInId: newCheckIn.id,
+          ...(isCompanyBill && companyId ? { companyId } : {}),
           total: room.rate,
           status: 'PENDING',
           checkInDate: new Date(checkInDate),
@@ -142,14 +149,8 @@ export async function POST(request: Request) {
           bill: {
             include: {
               items: true,
-              payments: {
-                select: {
-                  amount: true,
-                  method: true,
-                  date: true,
-                  reference: true
-                }
-              }
+              payments: true,
+              company: true
             }
           }
         }
@@ -184,7 +185,8 @@ export async function GET() {
         bill: {
           include: {
             items: true,
-            payments: true
+            payments: true,
+            company: true
           }
         }
       },
