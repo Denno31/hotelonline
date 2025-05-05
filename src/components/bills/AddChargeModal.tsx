@@ -28,7 +28,14 @@ export default function AddChargeModal({
     setLoading(true)
 
     try {
-      const response = await fetch(`/api/bills/${billId}/items`, {
+      console.log('Sending charge:', {
+        billId,
+        description: formData.description,
+        amount: parseFloat(formData.amount),
+        type: formData.type
+      })
+      
+      const response = await fetch(`/api/bills/${billId}/items/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
