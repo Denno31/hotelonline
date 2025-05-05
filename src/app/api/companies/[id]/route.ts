@@ -28,9 +28,21 @@ export async function GET(
           where: {
             status: {
               in: ['PENDING', 'PARTIALLY_PAID']
+            },
+            checkIn: {
+              is: {
+                status: 'ACTIVE'
+              }
             }
           },
           include: {
+            checkIn: {
+              select: {
+                checkInDate: true,
+                checkOutDate: true,
+                status: true
+              }
+            },
             guest: {
               select: {
                 firstName: true,
