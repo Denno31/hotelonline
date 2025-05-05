@@ -3,20 +3,52 @@ import prisma from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions)
     if (!session) {
       return new NextResponse('Unauthorized', { status: 401 })
     }
 
+    const { searchParams } = new URL(request.url)
+    const withActiveBills = searchParams.get('withActiveBills') === 'true'
+
     const companies = await prisma.company.findMany({
       orderBy: {
         name: 'asc'
-      }
+      },
+      include: withActiveBills ? {
+        bills: {
+          where: {
+            status: {
+              in: ['PENDING', 'PARTIALLY_PAID']
+            }
+          },
+          include: {
+            guest: {
+              select: {
+                firstName: true,
+                lastName: true
+              }
+            },
+            room: {
+              select: {
+                number: true
+              }
+            },
+            payments: {
+              select: {
+                id: true,
+                amount: true,
+                date: true
+              }
+            }
+          }
+        }
+      } : undefined
     })
 
-    return NextResponse.json(companies)
+    return NextResponse.json({ success: true, data: companies })
   } catch (error) {
     console.error('Error fetching companies:', error)
     return new NextResponse('Internal Server Error', { status: 500 })

@@ -81,10 +81,15 @@ export default function CheckInModal({
   const fetchCompanies = async () => {
     try {
       const response = await fetch('/api/companies')
-      const data = await response.json()
-      setCompanies(data)
+      const result = await response.json()
+      if (result.success) {
+        setCompanies(result.data)
+      } else {
+        setCompanies([])
+      }
     } catch (error) {
       console.error('Error fetching companies:', error)
+      setCompanies([])
     }
   }
 
