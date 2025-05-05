@@ -55,6 +55,27 @@ export async function POST(request: Request) {
       )
     }
 
+    // Check if guest already has an active check-in
+    const existingCheckIn = await prisma.checkIn.findFirst({
+      where: {
+        guestId,
+        status: CheckInStatus.ACTIVE
+      },
+      include: {
+        room: true
+      }
+    })
+
+    if (existingCheckIn) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: `Guest already has an active check-in in room ${existingCheckIn.room.number}` 
+        },
+        { status: 400 }
+      )
+    }
+
     // Create check-in and update room status in a transaction
     const result = await prisma.$transaction(async (tx) => {
       // Get room details for billing

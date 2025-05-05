@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import CheckInModal from '@/components/check-in/CheckInModal'
 import AddPaymentModal from '@/components/payments/AddPaymentModal'
+import { CheckOutDialog } from '@/components/check-ins/CheckOutDialog'
 
 interface CheckIn {
   id: string
@@ -50,6 +51,12 @@ export default function CheckInsPage() {
   const [isCheckInModalOpen, setIsCheckInModalOpen] = useState(false)
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
   const [selectedBill, setSelectedBill] = useState<{ id: string; total: number; amountPaid: number } | null>(null)
+  const [checkOutData, setCheckOutData] = useState<{
+    checkInId: string
+    hasOutstandingBalance: boolean
+    isCompanyBill: boolean
+    remainingBalance: number
+  } | null>(null)
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -179,7 +186,18 @@ export default function CheckInsPage() {
                     Add Payment
                   </button>
                   <button
-                    onClick={() => {/* TODO: Implement check-out */}}
+                    onClick={() => {
+                      if (checkIn.bill) {
+                        const totalPaid = checkIn.bill.payments?.reduce((sum, p) => sum + p.amount, 0) || 0
+                        const remainingBalance = checkIn.bill.total - totalPaid
+                        setCheckOutData({
+                          checkInId: checkIn.id,
+                          hasOutstandingBalance: remainingBalance > 0,
+                          isCompanyBill: !!checkIn.guest.company,
+                          remainingBalance
+                        })
+                      }
+                    }}
                     className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
                   >
                     Check Out
@@ -208,6 +226,15 @@ export default function CheckInsPage() {
           billId={selectedBill.id}
           billTotal={selectedBill.total}
           amountPaid={selectedBill.amountPaid}
+        />
+      )}
+
+      {checkOutData && (
+        <CheckOutDialog
+          isOpen={!!checkOutData}
+          onClose={() => setCheckOutData(null)}
+          onSuccess={fetchCheckIns}
+          {...checkOutData}
         />
       )}
     </div>

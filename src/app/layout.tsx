@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { Providers } from './providers';
+import { Toaster } from 'react-hot-toast';
 import { getServerSession } from 'next-auth';
 import { authOptions } from './api/auth/[...nextauth]/route';
 import Navbar from '@/components/layout/Navbar';
@@ -24,6 +25,7 @@ export default async function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <Providers session={session}>
+          <Toaster />
           <Navbar />
           <main className="min-h-screen bg-gray-50 pt-16">
             {children}
