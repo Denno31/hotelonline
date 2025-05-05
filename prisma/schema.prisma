@@ -1,0 +1,224 @@
+// This is your Prisma schema file
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  password      String
+  role          Role      @default(STAFF)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Guest {
+  id            String    @id @default(cuid())
+  firstName     String
+  lastName      String
+  email         String?
+  phone         String?
+  address       String?
+  company       Company?  @relation(fields: [companyId], references: [id])
+  companyId     String?
+  checkIns      CheckIn[]
+  bills         Bill[]
+  reservations  Reservation[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([companyId])
+}
+
+model Company {
+  id            String    @id @default(cuid())
+  name          String    @unique
+  email         String?
+  phone         String?
+  address       String?
+  guests        Guest[]
+  bills         Bill[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Room {
+  id          String    @id @default(cuid())
+  number      String    @unique
+  type        String
+  status      String    @default("AVAILABLE")
+  rate        Float
+  checkIns    CheckIn[]
+  bills       Bill[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model CheckIn {
+  id           String    @id @default(cuid())
+  guest        Guest     @relation(fields: [guestId], references: [id])
+  guestId      String
+  room         Room      @relation(fields: [roomId], references: [id])
+  roomId       String
+  reservation  Reservation?
+  checkInDate  DateTime
+  checkOutDate DateTime?
+  status       String    @default("ACTIVE")
+  bill         Bill?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([guestId])
+  @@index([roomId])
+}
+
+model Reservation {
+  id            String    @id @default(cuid())
+  guest         Guest     @relation(fields: [guestId], references: [id])
+  guestId       String
+  startDate     DateTime
+  endDate       DateTime
+  status        String    @default("CONFIRMED") // CONFIRMED, CANCELLED
+  checkIn       CheckIn?  @relation(fields: [checkInId], references: [id])
+  checkInId     String?   @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([guestId])
+}
+
+model Bill {
+  id          String    @id @default(cuid())
+  guest       Guest     @relation(fields: [guestId], references: [id])
+  guestId     String
+  company     Company?  @relation(fields: [companyId], references: [id])
+  companyId   String?
+  room        Room      @relation(fields: [roomId], references: [id])
+  roomId      String
+  checkIn     CheckIn?  @relation(fields: [checkInId], references: [id])
+  checkInId   String?   @unique
+  payments    Payment[]
+  charges     Charge[]
+  items       BillItem[]
+  total       Float
+  status      String    @default("PENDING")
+  checkInDate DateTime
+  checkOutDate DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([guestId])
+  @@index([companyId])
+  @@index([roomId])
+  @@index([checkInId])
+}
+
+model BillItem {
+  id            String    @id @default(cuid())
+  bill          Bill      @relation(fields: [billId], references: [id])
+  billId        String
+  description   String
+  amount        Float
+  type          String    // ACCOMMODATION, FOOD, BEVERAGE, SERVICE, OTHER
+  date          DateTime
+  quantity      Int       @default(1)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([billId])
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  bill      Bill     @relation(fields: [billId], references: [id])
+  billId    String
+  amount    Float
+  method    String
+  reference String?
+  date      DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([billId])
+}
+
+model Charge {
+  id          String   @id @default(cuid())
+  bill        Bill     @relation(fields: [billId], references: [id])
+  billId      String
+  amount      Float
+  description String
+  type        String
+  date        DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([billId])
+}
+
+model SystemDate {
+  id            String    @id @default(cuid())
+  currentDate   DateTime
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+enum RoomType {
+  SINGLE
+  DOUBLE
+  SUITE
+  DELUXE
+}
+
+enum RoomStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  MAINTENANCE
+}
+
+enum CheckInStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum ReservationStatus {
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum BillStatus {
+  PENDING
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+}
+
+enum BillItemType {
+  ACCOMMODATION
+  FOOD
+  BEVERAGE
+  SERVICE
+  OTHER
+}
+
+enum PaymentMethod {
+  CASH
+  CREDIT_CARD
+  BANK_TRANSFER
+  MOBILE_MONEY
+}
