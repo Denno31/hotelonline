@@ -6,52 +6,71 @@ import { format } from 'date-fns'
 import AddPaymentModal from '@/components/payments/AddPaymentModal'
 import AddChargeModal from '@/components/bills/AddChargeModal'
 
-interface CheckIn {
+interface Bill {
   id: string
-  checkInDate: string
-  checkOutDate: string | null
+  total: number
   status: string
+  checkIn: {
+    id: string
+    checkInDate: string
+    checkOutDate: string | null
+    status: string
+    guest: {
+      id: string
+      firstName: string
+      lastName: string
+      email: string
+      phone: string
+    }
+    room: {
+      id: string
+      number: string
+      type: string
+      rate: number
+    }
+  }
+  items: Array<{
+    id: string
+    description: string
+    amount: number
+    date: string
+    type: string
+  }>
+  payments: Array<{
+    id: string
+    amount: number
+    date: string
+    method: string
+    reference: string
+  }>
+  company?: {
+    id: string
+    name: string
+  }
   guest: {
     id: string
     firstName: string
     lastName: string
-    email: string
-    phone: string
   }
-  room: {
+  paidByBill?: {
     id: string
-    number: string
-    type: string
-    rate: number
-  }
-  bill: {
-    id: string
-    total: number
-    status: string
-    items: Array<{
-      id: string
-      description: string
-      amount: number
-      date: string
-      type: string
-    }>
-    payments: Array<{
-      id: string
-      amount: number
-      date: string
-      method: string
-      reference: string
-    }>
-    company?: {
-      id: string
-      name: string
+    guest: {
+      firstName: string
+      lastName: string
     }
   }
+  linkedBills?: Array<{
+    id: string
+    guest: {
+      firstName: string
+      lastName: string
+    }
+  }>
 }
 
 export default function GuestFolioPage() {
   const params = useParams()
-  const [checkIn, setCheckIn] = useState<CheckIn | null>(null)
+  const [bill, setBill] = useState<Bill | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
@@ -61,13 +80,13 @@ export default function GuestFolioPage() {
   const fetchFolioData = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/check-ins?id=${params.id}`)
+      const response = await fetch(`/api/folios/${params.id}`)
       const data = await response.json()
       
-      if (data.success && data.data.length > 0) {
-        setCheckIn(data.data[0])
+      if (data.success) {
+        setBill(data.data)
       } else {
-        setError('Check-in not found')
+        setError(data.error || 'Failed to load folio')
       }
     } catch (err) {
       setError('Failed to load folio data')
@@ -82,10 +101,10 @@ export default function GuestFolioPage() {
 
   if (loading) return <div className="p-8">Loading...</div>
   if (error) return <div className="p-8 text-red-500">{error}</div>
-  if (!checkIn) return <div className="p-8">No data found</div>
+  if (!bill) return <div className="p-8">No data found</div>
 
-  const outstandingBalance = checkIn.bill.total - 
-    checkIn.bill.payments.reduce((sum, payment) => sum + payment.amount, 0)
+  const outstandingBalance = bill.total - 
+    bill.payments.reduce((sum, payment) => sum + payment.amount, 0)
 
   return (
     <div className="container mx-auto p-8 bg-gray-50 min-h-screen">
@@ -93,10 +112,10 @@ export default function GuestFolioPage() {
       <div className="mb-8 flex justify-between items-start">
         <div>
           <h1 className="text-2xl font-bold mb-2 text-gray-900">
-            Guest Folio - {checkIn.guest.firstName} {checkIn.guest.lastName}
+            Guest Folio - {bill.checkIn.guest.firstName} {bill.checkIn.guest.lastName}
           </h1>
           <p className="text-gray-600">
-            Room {checkIn.room.number} - {checkIn.room.type}
+            Room {bill.checkIn.room.number} - {bill.checkIn.room.type}
           </p>
         </div>
         <button
@@ -113,19 +132,19 @@ export default function GuestFolioPage() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <p className="text-gray-600">Name</p>
-            <p className="text-gray-900">{checkIn.guest.firstName} {checkIn.guest.lastName}</p>
+            <p className="text-gray-900">{bill.checkIn.guest.firstName} {bill.checkIn.guest.lastName}</p>
           </div>
           <div>
             <p className="text-gray-600">Email</p>
-            <p className="text-gray-900">{checkIn.guest.email || 'N/A'}</p>
+            <p className="text-gray-900">{bill.checkIn.guest.email || 'N/A'}</p>
           </div>
           <div>
             <p className="text-gray-600">Phone</p>
-            <p className="text-gray-900">{checkIn.guest.phone || 'N/A'}</p>
+            <p className="text-gray-900">{bill.checkIn.guest.phone || 'N/A'}</p>
           </div>
           <div>
             <p className="text-gray-600">Check-in Date</p>
-            <p className="text-gray-900">{format(new Date(checkIn.checkInDate), 'MMM dd, yyyy')}</p>
+            <p className="text-gray-900">{format(new Date(bill.checkIn.checkInDate), 'MMM dd, yyyy')}</p>
           </div>
         </div>
       </div>
@@ -144,17 +163,34 @@ export default function GuestFolioPage() {
         <div className="mb-4">
           <div className="flex justify-between mb-2">
             <span className="text-gray-700">Total Charges</span>
-            <span className="text-gray-900">${checkIn.bill.total.toFixed(2)}</span>
+            <span className="text-gray-900">${bill.total.toFixed(2)}</span>
           </div>
           <div className="flex justify-between mb-2">
             <span className="text-gray-700">Total Payments</span>
-            <span className="text-gray-900">${checkIn.bill.payments.reduce((sum, payment) => sum + payment.amount, 0).toFixed(2)}</span>
+            <span className="text-gray-900">${bill.payments.reduce((sum, payment) => sum + payment.amount, 0).toFixed(2)}</span>
           </div>
           <div className="flex justify-between font-bold">
             <span className="text-gray-900">Outstanding Balance</span>
             <span className="text-gray-900">${outstandingBalance.toFixed(2)}</span>
           </div>
         </div>
+        {bill.paidByBill && (
+          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+            <p className="text-blue-800">This bill is paid by: {bill.paidByBill.guest.firstName} {bill.paidByBill.guest.lastName}</p>
+          </div>
+        )}
+        {bill.linkedBills && bill.linkedBills.length > 0 && (
+          <div className="mt-4 p-4 bg-purple-50 rounded-lg">
+            <p className="text-purple-800 font-semibold mb-2">Linked Bills:</p>
+            <ul className="list-disc list-inside space-y-1">
+              {bill.linkedBills.map(linkedBill => (
+                <li key={linkedBill.id} className="text-purple-700">
+                  {linkedBill.guest.firstName} {linkedBill.guest.lastName}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       {/* Charges */}
@@ -178,7 +214,7 @@ export default function GuestFolioPage() {
             </tr>
           </thead>
           <tbody>
-            {checkIn.bill.items.map(item => (
+            {bill.items.map(item => (
               <tr key={item.id} className="border-b">
                 <td className="py-2 text-gray-900">{format(new Date(item.date), 'MMM dd, yyyy')}</td>
                 <td className="py-2 text-gray-900">{item.description}</td>
@@ -203,7 +239,7 @@ export default function GuestFolioPage() {
             </tr>
           </thead>
           <tbody>
-            {checkIn.bill.payments.map(payment => (
+            {bill.payments.map(payment => (
               <tr key={payment.id} className="border-b">
                 <td className="py-2 text-gray-900">{format(new Date(payment.date), 'MMM dd, yyyy')}</td>
                 <td className="py-2 text-gray-900">{payment.method}</td>
@@ -216,30 +252,26 @@ export default function GuestFolioPage() {
       </div>
 
       {/* Modals */}
-      {checkIn.bill && (
-        <>
-          <AddChargeModal
-            isOpen={isChargeModalOpen}
-            onClose={() => setIsChargeModalOpen(false)}
-            onChargeAdded={() => {
-              setIsChargeModalOpen(false)
-              fetchFolioData()
-            }}
-            billId={checkIn.bill.id}
-          />
-          <AddPaymentModal
-            isOpen={isPaymentModalOpen}
-            onClose={() => setIsPaymentModalOpen(false)}
-            onPaymentAdded={() => {
-              setIsPaymentModalOpen(false)
-              fetchFolioData()
-            }}
-            billId={checkIn.bill.id}
-            billTotal={checkIn.bill.total}
-            amountPaid={checkIn.bill.payments.reduce((sum, p) => sum + p.amount, 0)}
-          />
-        </>
-      )}
+      <AddChargeModal
+        isOpen={isChargeModalOpen}
+        onClose={() => setIsChargeModalOpen(false)}
+        onChargeAdded={() => {
+          setIsChargeModalOpen(false)
+          fetchFolioData()
+        }}
+        billId={bill.id}
+      />
+      <AddPaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        onPaymentAdded={() => {
+          setIsPaymentModalOpen(false)
+          fetchFolioData()
+        }}
+        billId={bill.id}
+        billTotal={bill.total}
+        amountPaid={bill.payments.reduce((sum, p) => sum + p.amount, 0)}
+      />
     </div>
   )
 }

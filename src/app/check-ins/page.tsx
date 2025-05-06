@@ -188,10 +188,11 @@ export default function CheckInsPage() {
                 <div className="mt-4 flex justify-end space-x-4">
                   <button
                     onClick={() => {
-                      if (checkIn.bill?.companyId) {
+                      if (!checkIn.bill) return
+                      if (checkIn.bill.companyId) {
                         router.push(`/folios/city-ledger/${checkIn.bill.companyId}`)
                       } else {
-                        router.push(`/folios/guest/${checkIn.id}`)
+                        router.push(`/folios/guest/${checkIn.bill.id}`)
                       }
                     }}
                     className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
