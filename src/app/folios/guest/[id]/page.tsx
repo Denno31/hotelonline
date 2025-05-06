@@ -61,6 +61,14 @@ interface Bill {
   }
   linkedBills?: Array<{
     id: string
+    total: number
+    payments: Array<{
+      id: string
+      amount: number
+      date: string
+      method: string
+      reference: string
+    }>
     guest: {
       firstName: string
       lastName: string
@@ -271,6 +279,7 @@ export default function GuestFolioPage() {
         billId={bill.id}
         billTotal={bill.total}
         amountPaid={bill.payments.reduce((sum, p) => sum + p.amount, 0)}
+        linkedBills={bill.linkedBills}
       />
     </div>
   )

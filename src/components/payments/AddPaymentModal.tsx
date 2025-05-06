@@ -3,6 +3,30 @@
 import { useState } from 'react'
 import Modal from '../shared/Modal'
 
+interface LinkedBill {
+  id: string
+  total: number
+  guest: {
+    firstName: string
+    lastName: string
+  }
+  payments: Array<{
+    amount: number
+  }>
+}
+
+interface LinkedBill {
+  id: string
+  total: number
+  guest: {
+    firstName: string
+    lastName: string
+  }
+  payments: Array<{
+    amount: number
+  }>
+}
+
 interface AddPaymentModalProps {
   isOpen: boolean
   onClose: () => void
@@ -10,6 +34,7 @@ interface AddPaymentModalProps {
   billId: string
   billTotal: number
   amountPaid: number
+  linkedBills?: LinkedBill[]
 }
 
 export default function AddPaymentModal({
@@ -18,7 +43,8 @@ export default function AddPaymentModal({
   onPaymentAdded,
   billId,
   billTotal,
-  amountPaid
+  amountPaid,
+  linkedBills
 }: AddPaymentModalProps) {
   const [amount, setAmount] = useState('')
   const [method, setMethod] = useState('CASH')
@@ -26,7 +52,13 @@ export default function AddPaymentModal({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const remainingAmount = billTotal - amountPaid
+  // Calculate total remaining amount including linked bills
+  const mainBillRemaining = billTotal - amountPaid
+  const linkedBillsRemaining = linkedBills?.reduce((sum: number, bill: LinkedBill) => {
+    const paidAmount = bill.payments.reduce((paid: number, p: { amount: number }) => paid + p.amount, 0)
+    return sum + (bill.total - paidAmount)
+  }, 0) ?? 0
+  const totalRemaining = mainBillRemaining + linkedBillsRemaining
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -74,23 +106,66 @@ export default function AddPaymentModal({
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700">
-            Bill Total
+            Your Bill
           </label>
-          <div className="mt-1 text-lg font-semibold">${billTotal}</div>
+          <div className="mt-1 space-y-1">
+            <div className="flex justify-between">
+              <span>Total:</span>
+              <span className="font-semibold">${billTotal}</span>
+            </div>
+            <div className="flex justify-between text-gray-600">
+              <span>Paid:</span>
+              <span>${amountPaid}</span>
+            </div>
+            <div className="flex justify-between font-medium">
+              <span>Remaining:</span>
+              <span>${mainBillRemaining}</span>
+            </div>
+          </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Amount Paid So Far
-          </label>
-          <div className="mt-1 text-lg font-semibold">${amountPaid}</div>
-        </div>
+        {linkedBills && linkedBills.length > 0 && (
+          <div className="border-t pt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Linked Bills You're Paying For
+            </label>
+            <div className="space-y-4">
+              {linkedBills.map(bill => {
+                const paidAmount = bill.payments.reduce((sum, p) => sum + p.amount, 0)
+                const remaining = bill.total - paidAmount
+                return (
+                  <div key={bill.id} className="bg-purple-50 p-3 rounded-lg">
+                    <div className="font-medium text-purple-900 mb-1">
+                      {bill.guest.firstName} {bill.guest.lastName}
+                    </div>
+                    <div className="text-sm space-y-1">
+                      <div className="flex justify-between">
+                        <span>Total:</span>
+                        <span className="font-semibold">${bill.total}</span>
+                      </div>
+                      <div className="flex justify-between text-gray-600">
+                        <span>Paid:</span>
+                        <span>${paidAmount}</span>
+                      </div>
+                      <div className="flex justify-between font-medium">
+                        <span>Remaining:</span>
+                        <span>${remaining}</span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
-        <div>
+        <div className="border-t pt-4">
           <label className="block text-sm font-medium text-gray-700">
-            Remaining Balance
+            Total Amount Needed
           </label>
-          <div className="mt-1 text-lg font-semibold">${remainingAmount}</div>
+          <div className="mt-1 text-lg font-bold text-blue-600">
+            ${totalRemaining}
+          </div>
         </div>
 
         <div>
@@ -104,7 +179,7 @@ export default function AddPaymentModal({
             onChange={(e) => setAmount(e.target.value)}
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
             required
-            max={remainingAmount}
+            max={totalRemaining}
             min={0.01}
           />
         </div>
