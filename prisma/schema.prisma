@@ -116,6 +116,11 @@ model Bill {
   status      String    @default("PENDING")
   checkInDate DateTime
   checkOutDate DateTime?
+  // Bill linking - a bill can be paid by another bill
+  paidByBill    Bill?   @relation("BillLinks", fields: [paidByBillId], references: [id])
+  paidByBillId  String? 
+  linkedBills   Bill[]  @relation("BillLinks")
+  linkingDate   DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -123,6 +128,7 @@ model Bill {
   @@index([companyId])
   @@index([roomId])
   @@index([checkInId])
+  @@index([paidByBillId])
 }
 
 model BillItem {

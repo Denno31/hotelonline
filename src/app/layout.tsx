@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast';
 import { getServerSession } from 'next-auth';
 import { authOptions } from './api/auth/[...nextauth]/route';
 import Navbar from '@/components/layout/Navbar';
+import Sidebar from '@/components/layout/Sidebar';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -26,10 +27,20 @@ export default async function RootLayout({
       <body className={inter.className}>
         <Providers session={session}>
           <Toaster />
-          <Navbar />
-          <main className="min-h-screen bg-gray-50 pt-16">
-            {children}
-          </main>
+          <div className="flex h-screen overflow-hidden">
+            {/* Sidebar for desktop */}
+            <div className="hidden md:flex">
+              <Sidebar />
+            </div>
+
+            {/* Main content */}
+            <div className="flex flex-col flex-1 w-full overflow-x-hidden">
+              <Navbar />
+              <main className="flex-1 overflow-y-auto bg-gray-50 px-4 py-8">
+                {children}
+              </main>
+            </div>
+          </div>
         </Providers>
       </body>
     </html>
