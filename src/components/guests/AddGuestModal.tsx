@@ -40,8 +40,13 @@ export default function AddGuestModal({
   const fetchCompanies = async () => {
     try {
       const response = await fetch('/api/companies')
-      const data = await response.json()
-      setCompanies(data)
+      const { success, data } = await response.json()
+      if (success) {
+        setCompanies(data)
+      } else {
+        console.error('Failed to fetch companies')
+        setCompanies([])
+      }
     } catch (error) {
       console.error('Error fetching companies:', error)
     }

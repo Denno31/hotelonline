@@ -112,7 +112,7 @@ model Bill {
   payments    Payment[]
   charges     Charge[]
   items       BillItem[]
-  total       Float
+  total       Float     @default(0)
   status      String    @default("PENDING")
   checkInDate DateTime
   checkOutDate DateTime?

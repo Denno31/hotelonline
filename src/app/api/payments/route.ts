@@ -2,30 +2,74 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { Bill, Payment, PaymentMethod } from '@prisma/client'
+import { Prisma, Bill, Payment, PaymentMethod } from '@prisma/client'
+import { Session } from 'next-auth'
 
-type BillWithRelations = Bill & {
-  guest: { firstName: string; lastName: string }
-  payments: Payment[]
-  paidBills: (Bill & {
-    guest: { firstName: string; lastName: string }
-    payments: Payment[]
-  })[]
+type ExtendedSession = Session & {
+  user?: {
+    id: string
+    name?: string | null
+    email?: string | null
+    image?: string | null
+  }
 }
 
+type BillWithGuest = {
+  guest: { firstName: string; lastName: string }
+}
+
+type BillWithPayments = {
+  payments: Payment[]
+}
+
+type BillWithPaidBills = {
+  paidBills: (Bill & BillWithGuest & BillWithPayments)[]
+}
+
+type BillWithRelations = Bill & BillWithGuest & BillWithPayments & BillWithPaidBills
+
+type PaymentInput = {
+  billId: string
+  amount: number
+  method: PaymentMethod
+  reference?: string | null
+}
+
+const billInclude = {
+  guest: {
+    select: {
+      firstName: true,
+      lastName: true
+    }
+  },
+  payments: true,
+  paidBills: {
+    include: {
+      guest: {
+        select: {
+          firstName: true,
+          lastName: true
+        }
+      },
+      payments: true
+    }
+  }
+} as const
+
 // POST /api/payments - Record a new payment
-export async function POST(request: Request) {
+export async function POST(request: Request): Promise<NextResponse> {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
+    const session = await getServerSession(authOptions) as ExtendedSession
+    const userId = session?.user?.id
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await req.json()
-    const { billId, amount, method, reference } = body
+    const body = await request.json()
+    const { billId, amount, method, reference } = body as PaymentInput
 
     // Validate payment method
-    if (!Object.values(PaymentMethod).includes(method as PaymentMethod)) {
+    if (!Object.values(PaymentMethod).includes(method)) {
       return NextResponse.json(
         { error: 'Invalid payment method' },
         { status: 400 }
@@ -40,93 +84,23 @@ export async function POST(request: Request) {
       )
     }
 
-    // Get current system date
-    const systemDate = await prisma.systemDate.findFirst({
-      orderBy: { currentDate: 'desc' }
-    })
-
-    if (!systemDate) {
-      return NextResponse.json(
-        { error: 'System date not set' },
-        { status: 400 }
-      )
-    }
-
-    // First check if the bill exists and has enough remaining balance
-    if (!session.user?.email) {
-      return NextResponse.json({ error: 'User email not found' }, { status: 401 })
-    }
-
-    // Get the user and their current shift
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-      include: {
-        currentShift: true
-      }
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    }
-
-    if (!user.currentShift) {
-      return NextResponse.json(
-        { error: 'No active shift found. Please start a shift before recording payments.' },
-        { status: 400 }
-      )
-    }
-
-    // Get main bill and its linked bills
+    // Get bill with linked bills
     const mainBill = await prisma.bill.findUnique({
       where: { id: billId },
-      include: {
-        guest: {
-          select: {
-            firstName: true,
-            lastName: true
-          }
-        },
-        payments: true,
-        paidBills: {
-            date: true
-          }
-        },
-        linkedBills: {
-          include: {
-            guest: {
-              select: {
-                firstName: true,
-                lastName: true
-              }
-            },
-            payments: {
-              select: {
-                id: true,
-                amount: true,
-                method: true,
-                reference: true,
-                date: true
-              }
-            }
-          }
-        }
-      }
-    }) as Bill | null
+      include: billInclude
+    }) as BillWithRelations
 
     if (!mainBill) {
-      return NextResponse.json(
-        { error: 'Bill not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Bill not found' }, { status: 404 })
     }
 
     // Calculate total paid and remaining balance for main bill
-    const mainBillPaid = mainBill.payments.reduce((sum: number, p: { amount: number }) => sum + p.amount, 0)
+    const mainBillPaid = mainBill.payments.reduce((sum: number, p: Payment) => sum + p.amount, 0)
     const mainBillRemaining = mainBill.total - mainBillPaid
 
     // Calculate total remaining amount including paid bills
-    const totalRemaining = mainBillRemaining + mainBill.paidBills.reduce((sum: number, bill) => {
-      const paidAmount = bill.payments.reduce((paid: number, p) => paid + p.amount, 0)
+    const totalRemaining = mainBillRemaining + mainBill.paidBills.reduce((sum: number, bill: Bill & BillWithPayments) => {
+      const paidAmount = bill.payments.reduce((paid: number, p: Payment) => paid + p.amount, 0)
       return sum + (bill.total - paidAmount)
     }, 0)
 
@@ -137,80 +111,37 @@ export async function POST(request: Request) {
       )
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      let remainingAmount = amount
-      const payments: Payment[] = []
-
-      // First, allocate payment to main bill if needed
-      if (mainBillRemaining > 0) {
-        const mainBillPayment = Math.min(remainingAmount, mainBillRemaining)
-        const payment = await tx.payment.create({
-          data: {
-            billId: mainBill.id,
-            amount: mainBillPayment,
-            method: method as PaymentMethod,
-            reference,
-            date: systemDate.currentDate,
-            shiftId: user.currentShift!.id
-          }
-        })
-        payments.push(payment)
-        remainingAmount -= mainBillPayment
-
-        // Update main bill status
-        await tx.bill.update({
-          where: { id: mainBill.id },
-          data: {
-            status: mainBillPayment >= mainBillRemaining ? 'PAID' : 'PARTIALLY_PAID'
-          }
-        })
-      }
-
-      // If there's remaining amount, distribute to linked bills
-      if (remainingAmount > 0 && mainBill.linkedBills.length > 0) {
-        for (const linkedBill of mainBill.linkedBills) {
-          const linkedBillPaid = linkedBill.payments.reduce((sum: number, p: Payment) => sum + p.amount, 0)
-          const linkedBillRemaining = linkedBill.total - linkedBillPaid
-
-          if (linkedBillRemaining > 0 && remainingAmount > 0) {
-            const linkedBillPayment = Math.min(remainingAmount, linkedBillRemaining)
-            const payment = await tx.payment.create({
-              data: {
-                billId: linkedBill.id,
-                amount: linkedBillPayment,
-                method: method as PaymentMethod,
-                reference,
-                date: systemDate.currentDate,
-                shiftId: user.currentShift!.id
-              }
-            })
-            payments.push(payment)
-            remainingAmount -= linkedBillPayment
-
-            // Update linked bill status
-            await tx.bill.update({
-              where: { id: linkedBill.id },
-              data: {
-                status: linkedBillPayment >= linkedBillRemaining ? 'PAID' : 'PARTIALLY_PAID'
-              }
-            })
-          }
-
-          if (remainingAmount <= 0) break
-        }
-      }
-
-      return {
-        payments,
-        remainingAmount
+    // Create payment record
+    const payment = await prisma.payment.create({
+      data: {
+        billId: mainBill.id,
+        amount,
+        method,
+        reference: reference ?? null,
+        date: new Date(),
+        shiftId: userId
       }
     })
 
-    return NextResponse.json(result)
+    // Update bill status if fully paid
+    if (mainBillPaid + amount >= mainBill.total) {
+      await prisma.bill.update({
+        where: { id: mainBill.id },
+        data: { status: 'PAID' }
+      })
+    }
+
+    return NextResponse.json({
+      success: true,
+      payment,
+      totalRemaining,
+      mainBillRemaining,
+      linkedBillsRemaining: totalRemaining - mainBillRemaining
+    })
   } catch (error) {
-    console.error('Error recording payment:', error)
+    console.error('Error processing payment:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Failed to process payment' },
       { status: 500 }
     )
   }
