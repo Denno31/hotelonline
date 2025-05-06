@@ -117,9 +117,9 @@ model Bill {
   checkInDate DateTime
   checkOutDate DateTime?
   // Bill linking - a bill can be paid by another bill
-  paidByBill    Bill?   @relation("BillLinks", fields: [paidByBillId], references: [id])
+  paidByBill    Bill?   @relation("BillPayments", fields: [paidByBillId], references: [id])
   paidByBillId  String? 
-  linkedBills   Bill[]  @relation("BillLinks")
+  paidBills     Bill[]  @relation("BillPayments")
   linkingDate   DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

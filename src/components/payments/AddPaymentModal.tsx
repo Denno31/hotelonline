@@ -52,13 +52,16 @@ export default function AddPaymentModal({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // Calculate total remaining amount including linked bills
+  // Calculate remaining amounts
   const mainBillRemaining = billTotal - amountPaid
   const linkedBillsRemaining = linkedBills?.reduce((sum: number, bill: LinkedBill) => {
     const paidAmount = bill.payments.reduce((paid: number, p: { amount: number }) => paid + p.amount, 0)
     return sum + (bill.total - paidAmount)
   }, 0) ?? 0
   const totalRemaining = mainBillRemaining + linkedBillsRemaining
+  
+  // Allow payment up to total remaining amount, even if main bill is paid
+  const validationMax = totalRemaining
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -179,7 +182,7 @@ export default function AddPaymentModal({
             onChange={(e) => setAmount(e.target.value)}
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
             required
-            max={totalRemaining}
+            max={validationMax.toString()}
             min={0.01}
           />
         </div>

@@ -2,7 +2,22 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { Bill, CheckIn, Guest, Payment, Room } from '@prisma/client';
 import { CheckInStatus, RoomStatus } from '@prisma/client';
+
+type BillWithRelations = Bill & {
+  guest: Guest
+  payments: Payment[]
+  paidBills: (Bill & {
+    guest: Guest
+    payments: Payment[]
+  })[]
+}
+
+type CheckInWithBill = CheckIn & {
+  bill: BillWithRelations | null
+  room: Room
+}
 
 export async function PATCH(
   request: Request,
@@ -24,17 +39,18 @@ export async function PATCH(
         bill: {
           include: {
             payments: true,
-            paidByBill: {
+            guest: true,
+            paidBills: {
               include: {
-                checkIn: true,
-                guest: true
+                guest: true,
+                payments: true
               }
             }
           }
         },
         room: true
       }
-    });
+    }) as CheckInWithBill;
 
     if (!checkIn) {
       return NextResponse.json(
@@ -60,6 +76,30 @@ export async function PATCH(
         { error: 'Cannot check out: Bill has no payments and is not linked to another bill' },
         { status: 400 }
       );
+    }
+
+    const bill = checkIn.bill;
+
+    // If bill has no payments and is not linked to another bill, prevent checkout
+    if (bill && bill.payments.length === 0 && !bill.paidByBill) {
+      return NextResponse.json(
+        { error: 'Cannot check out guest with unpaid bill' },
+        { status: 400 }
+      )
+    }
+
+    // Check if guest has any unpaid bills they're paying for
+    const unpaidBills = checkIn.bill?.paidBills.filter(bill => {
+      const paidAmount = bill.payments.reduce((sum, p) => sum + p.amount, 0)
+      return paidAmount < bill.total
+    }) || []
+
+    if (unpaidBills.length > 0) {
+      const unpaidGuests = unpaidBills.map(b => `${b.guest.firstName} ${b.guest.lastName}`).join(', ')
+      return NextResponse.json(
+        { error: `Cannot check out guest while paying for unpaid bills: ${unpaidGuests}` },
+        { status: 400 }
+      )
     }
 
     // Perform checkout

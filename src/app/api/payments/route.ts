@@ -2,42 +2,19 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { Payment, PaymentMethod } from '@prisma/client'
+import { Bill, Payment, PaymentMethod } from '@prisma/client'
 
-interface Bill {
-  id: string
-  total: number
-  status: string
-  guest: {
-    firstName: string
-    lastName: string
-  }
-  payments: Array<{
-    id: string
-    amount: number
-    date: string
-    method: string
-    reference: string
-  }>
-  linkedBills: Array<{
-    id: string
-    total: number
-    payments: Array<{
-      id: string
-      amount: number
-      date: string
-      method: string
-      reference: string
-    }>
-    guest: {
-      firstName: string
-      lastName: string
-    }
-  }>
+type BillWithRelations = Bill & {
+  guest: { firstName: string; lastName: string }
+  payments: Payment[]
+  paidBills: (Bill & {
+    guest: { firstName: string; lastName: string }
+    payments: Payment[]
+  })[]
 }
 
 // POST /api/payments - Record a new payment
-export async function POST(req: Request) {
+export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions)
     if (!session) {
@@ -103,13 +80,14 @@ export async function POST(req: Request) {
     const mainBill = await prisma.bill.findUnique({
       where: { id: billId },
       include: {
-        guest: true,
-        payments: {
+        guest: {
           select: {
-            id: true,
-            amount: true,
-            method: true,
-            reference: true,
+            firstName: true,
+            lastName: true
+          }
+        },
+        payments: true,
+        paidBills: {
             date: true
           }
         },
@@ -146,13 +124,13 @@ export async function POST(req: Request) {
     const mainBillPaid = mainBill.payments.reduce((sum: number, p: { amount: number }) => sum + p.amount, 0)
     const mainBillRemaining = mainBill.total - mainBillPaid
 
-    // Calculate total remaining amount including linked bills
-    const totalRemainingAmount = mainBillRemaining + mainBill.linkedBills.reduce((sum: number, bill: { total: number, payments: Array<{ amount: number }> }) => {
-      const paidAmount = bill.payments.reduce((paid: number, p: { amount: number }) => paid + p.amount, 0)
+    // Calculate total remaining amount including paid bills
+    const totalRemaining = mainBillRemaining + mainBill.paidBills.reduce((sum: number, bill) => {
+      const paidAmount = bill.payments.reduce((paid: number, p) => paid + p.amount, 0)
       return sum + (bill.total - paidAmount)
     }, 0)
 
-    if (amount > totalRemainingAmount) {
+    if (amount > totalRemaining) {
       return NextResponse.json(
         { error: 'Payment amount exceeds total remaining balance' },
         { status: 400 }
