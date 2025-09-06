@@ -60,26 +60,35 @@ export async function POST(
     }
 
     try {
-      // Create the bill item
-      const billItem = await prisma.billItem.create({
-        data: {
-          billId: params.id,
-          description,
-          amount,
-          type,
-          date: new Date(),
-          quantity: 1
-        }
-      })
+      // Calculate tax
+      const taxRate = 0.16 // 16% VAT
+      const subtotal = amount
+      const taxAmount = subtotal * taxRate
+      const total = subtotal + taxAmount
 
-      // Update the bill total
-      await prisma.bill.update({
-        where: { id: params.id },
-        data: {
-          total: {
-            increment: amount
+      // Create the bill item with tax fields
+      const billItem = await prisma.$transaction(async (tx) => {
+        // Create the bill item
+        const item = await tx.billItem.create({
+          data: {
+            billId: params.id,
+            description,
+            amount: total, // Keep amount as total for backward compatibility
+            type,
+            date: new Date(),
+            quantity: 1
           }
-        }
+        })
+
+        // Update the bill totals
+        await tx.bill.update({
+          where: { id: params.id },
+          data: {
+            total: { increment: total }
+          }
+        })
+
+        return item
       })
 
       return NextResponse.json({ success: true, data: billItem })

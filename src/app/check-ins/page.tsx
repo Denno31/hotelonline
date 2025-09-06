@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import CheckInModal from '@/components/check-in/CheckInModal'
 import AddPaymentModal from '@/components/payments/AddPaymentModal'
 import { CheckOutDialog } from '@/components/check-ins/CheckOutDialog'
+import LinkBillsModal from '@/components/bills/LinkBillsModal'
 
 interface CheckIn {
   id: string
@@ -29,6 +30,20 @@ interface CheckIn {
     total: number
     status: string
     companyId: string | null
+    paidByBill?: {
+      id: string
+      guest: {
+        firstName: string
+        lastName: string
+      }
+    }
+    linkedBills?: Array<{
+      id: string
+      guest: {
+        firstName: string
+        lastName: string
+      }
+    }>
     items: Array<{
       description: string
       amount: number
@@ -58,6 +73,7 @@ export default function CheckInsPage() {
     isCompanyBill: boolean
     remainingBalance: number
   } | null>(null)
+  const [linkBillData, setLinkBillData] = useState<{ billId: string } | null>(null)
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -172,10 +188,11 @@ export default function CheckInsPage() {
                 <div className="mt-4 flex justify-end space-x-4">
                   <button
                     onClick={() => {
-                      if (checkIn.bill?.companyId) {
+                      if (!checkIn.bill) return
+                      if (checkIn.bill.companyId) {
                         router.push(`/folios/city-ledger/${checkIn.bill.companyId}`)
                       } else {
-                        router.push(`/folios/guest/${checkIn.id}`)
+                        router.push(`/folios/guest/${checkIn.bill.id}`)
                       }
                     }}
                     className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
@@ -183,22 +200,41 @@ export default function CheckInsPage() {
                     View Folio
                   </button>
                   {!checkIn.bill?.companyId && (
-                    <button
-                      onClick={() => {
-                        if (checkIn.bill) {
-                          const totalPaid = checkIn.bill.payments?.reduce((sum, p) => sum + p.amount, 0) || 0
-                          setSelectedBill({
-                            id: checkIn.bill.id,
-                            total: checkIn.bill.total,
-                            amountPaid: totalPaid
-                          })
-                          setIsPaymentModalOpen(true)
-                        }
-                      }}
-                      className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-                    >
-                      Add Payment
-                    </button>
+                    <>
+                      <button
+                        onClick={() => {
+                          if (checkIn.bill) {
+                            const totalPaid = checkIn.bill.payments?.reduce((sum, p) => sum + p.amount, 0) || 0
+                            setSelectedBill({
+                              id: checkIn.bill.id,
+                              total: checkIn.bill.total,
+                              amountPaid: totalPaid
+                            })
+                            setIsPaymentModalOpen(true)
+                          }
+                        }}
+                        className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                      >
+                        Add Payment
+                      </button>
+                      {!checkIn.bill.paidByBill && (
+                        <button
+                          onClick={() => {
+                            if (checkIn.bill) {
+                              setLinkBillData({ billId: checkIn.bill.id })
+                            }
+                          }}
+                          className="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600"
+                        >
+                          Link Bill
+                        </button>
+                      )}
+                      {checkIn.bill.paidByBill && (
+                        <div className="text-sm text-gray-600">
+                          Paid by: {checkIn.bill.paidByBill.guest.firstName} {checkIn.bill.paidByBill.guest.lastName}
+                        </div>
+                      )}
+                    </>
                   )}
                   <button
                     onClick={() => {
@@ -250,6 +286,16 @@ export default function CheckInsPage() {
           onClose={() => setCheckOutData(null)}
           onSuccess={fetchCheckIns}
           {...checkOutData}
+        />
+      )}
+
+      {linkBillData && (
+        <LinkBillsModal
+          isOpen={!!linkBillData}
+          onClose={() => setLinkBillData(null)}
+          onSuccess={fetchCheckIns}
+          billId={linkBillData.billId}
+          checkIns={checkIns}
         />
       )}
     </div>

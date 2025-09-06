@@ -1,83 +1,82 @@
-// This is your Prisma schema file
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  password      String
-  role          Role      @default(STAFF)
-  shifts        Shift[]
-  currentShift  Shift?    @relation(name: "CurrentShift", fields: [currentShiftId], references: [id])
+  id             String   @id @default(cuid())
+  name           String?
+  email          String   @unique
+  password       String
+  role           Role     @default(STAFF)
   currentShiftId String?  @unique
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  shifts         Shift[]
+  currentShift   Shift?   @relation("CurrentShift", fields: [currentShiftId], references: [id])
 }
 
 model Guest {
-  id            String    @id @default(cuid())
-  firstName     String
-  lastName      String
-  email         String?
-  phone         String?
-  address       String?
-  company       Company?  @relation(fields: [companyId], references: [id])
-  companyId     String?
-  checkIns      CheckIn[]
-  bills         Bill[]
-  reservations  Reservation[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id           String        @id @default(cuid())
+  firstName    String
+  lastName     String
+  email        String?
+  phone        String?
+  address      String?
+  companyId    String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  bills        Bill[]
+  checkIns     CheckIn[]
+  company      Company?      @relation(fields: [companyId], references: [id])
+  reservations Reservation[]
 
   @@index([companyId])
 }
 
 model Company {
-  id            String    @id @default(cuid())
-  name          String    @unique
-  email         String?
-  phone         String?
-  address       String?
-  guests        Guest[]
-  bills         Bill[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id        String   @id @default(cuid())
+  name      String   @unique
+  email     String?
+  phone     String?
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  bills     Bill[]
+  guests    Guest[]
 }
 
 model Room {
-  id          String    @id @default(cuid())
-  number      String    @unique
-  type        RoomType
-  rate        Float
-  status      RoomStatus @default(AVAILABLE)
-  checkIns    CheckIn[]
-  bills       Bill[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id        String     @id @default(cuid())
+  number    String     @unique
+  type      RoomType
+  rate      Float
+  status    RoomStatus @default(AVAILABLE)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  bills     Bill[]
+  checkIns  CheckIn[]
 }
 
 model CheckIn {
-  id           String    @id @default(cuid())
-  guest        Guest     @relation(fields: [guestId], references: [id])
+  id           String        @id @default(cuid())
   guestId      String
-  room         Room      @relation(fields: [roomId], references: [id])
   roomId       String
-  reservation  Reservation?
   checkInDate  DateTime
   checkOutDate DateTime?
   status       CheckInStatus @default(ACTIVE)
-  bill         Bill?
-  shift        Shift     @relation(fields: [shiftId], references: [id])
   shiftId      String
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  bill         Bill?
+  guest        Guest         @relation(fields: [guestId], references: [id])
+  room         Room          @relation(fields: [roomId], references: [id])
+  shift        Shift         @relation(fields: [shiftId], references: [id])
+  reservation  Reservation?
 
   @@index([guestId])
   @@index([roomId])
@@ -85,73 +84,78 @@ model CheckIn {
 }
 
 model Reservation {
-  id            String    @id @default(cuid())
-  guest         Guest     @relation(fields: [guestId], references: [id])
-  guestId       String
-  startDate     DateTime
-  endDate       DateTime
-  status        String    @default("CONFIRMED") // CONFIRMED, CANCELLED
-  checkIn       CheckIn?  @relation(fields: [checkInId], references: [id])
-  checkInId     String?   @unique
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id        String   @id @default(cuid())
+  guestId   String
+  startDate DateTime
+  endDate   DateTime
+  status    String   @default("CONFIRMED")
+  checkInId String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  checkIn   CheckIn? @relation(fields: [checkInId], references: [id])
+  guest     Guest    @relation(fields: [guestId], references: [id])
 
   @@index([guestId])
 }
 
 model Bill {
-  id          String    @id @default(cuid())
-  guest       Guest     @relation(fields: [guestId], references: [id])
-  guestId     String
-  company     Company?  @relation(fields: [companyId], references: [id])
-  companyId   String?
-  room        Room      @relation(fields: [roomId], references: [id])
-  roomId      String
-  checkIn     CheckIn?  @relation(fields: [checkInId], references: [id])
-  checkInId   String?   @unique
-  payments    Payment[]
-  charges     Charge[]
-  items       BillItem[]
-  total       Float
-  status      String    @default("PENDING")
-  checkInDate DateTime
+  id           String     @id @default(cuid())
+  guestId      String
+  companyId    String?
+  roomId       String
+  checkInId    String?    @unique
+  total        Float      @default(0)
+  status       String     @default("PENDING")
+  checkInDate  DateTime
   checkOutDate DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  paidByBillId String?
+  linkingDate  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  checkIn      CheckIn?   @relation(fields: [checkInId], references: [id])
+  company      Company?   @relation(fields: [companyId], references: [id])
+  guest        Guest      @relation(fields: [guestId], references: [id])
+  paidByBill   Bill?      @relation("BillPayments", fields: [paidByBillId], references: [id])
+  paidBills    Bill[]     @relation("BillPayments")
+  room         Room       @relation(fields: [roomId], references: [id])
+  items        BillItem[]
+  charges      Charge[]
+  payments     Payment[]
 
   @@index([guestId])
   @@index([companyId])
   @@index([roomId])
   @@index([checkInId])
+  @@index([paidByBillId])
 }
 
 model BillItem {
-  id            String    @id @default(cuid())
-  bill          Bill      @relation(fields: [billId], references: [id])
-  billId        String
-  description   String
-  amount        Float
-  type          String    // ACCOMMODATION, FOOD, BEVERAGE, SERVICE, OTHER
-  date          DateTime
-  quantity      Int       @default(1)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id          String   @id @default(cuid())
+  billId      String
+  description String
+  amount      Float
+  type        String
+  date        DateTime
+  quantity    Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  bill        Bill     @relation(fields: [billId], references: [id])
 
   @@index([billId])
 }
 
 model Payment {
-  id        String   @id @default(cuid())
-  bill      Bill     @relation(fields: [billId], references: [id])
+  id        String        @id @default(cuid())
   billId    String
   amount    Float
   method    PaymentMethod
   reference String?
   date      DateTime
-  shift     Shift    @relation(fields: [shiftId], references: [id])
   shiftId   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  bill      Bill          @relation(fields: [billId], references: [id])
+  shift     Shift         @relation(fields: [shiftId], references: [id])
 
   @@index([billId])
   @@index([shiftId])
@@ -159,7 +163,6 @@ model Payment {
 
 model Charge {
   id          String   @id @default(cuid())
-  bill        Bill     @relation(fields: [billId], references: [id])
   billId      String
   amount      Float
   description String
@@ -167,15 +170,33 @@ model Charge {
   date        DateTime
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  bill        Bill     @relation(fields: [billId], references: [id])
 
   @@index([billId])
 }
 
 model SystemDate {
-  id            String    @id @default(cuid())
-  currentDate   DateTime
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id          String   @id @default(cuid())
+  currentDate DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Shift {
+  id          String      @id @default(cuid())
+  userId      String
+  startTime   DateTime
+  endTime     DateTime?
+  cashInHand  Float?
+  status      ShiftStatus @default(ACTIVE)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  checkIns    CheckIn[]
+  payments    Payment[]
+  user        User        @relation(fields: [userId], references: [id])
+  currentUser User?       @relation("CurrentShift")
+
+  @@index([userId])
 }
 
 enum Role {
@@ -229,23 +250,6 @@ enum PaymentMethod {
   CREDIT_CARD
   BANK_TRANSFER
   MOBILE_MONEY
-}
-
-model Shift {
-  id            String    @id @default(cuid())
-  user          User      @relation(fields: [userId], references: [id])
-  userId        String
-  startTime     DateTime
-  endTime       DateTime?
-  cashInHand    Float?
-  status        ShiftStatus @default(ACTIVE)
-  payments      Payment[]
-  checkIns      CheckIn[]
-  currentUser   User?     @relation("CurrentShift")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  @@index([userId])
 }
 
 enum ShiftStatus {
